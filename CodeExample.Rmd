@@ -1,0 +1,521 @@
+---
+title: "Evaluating the Determinants of Housing Prices in California in 1990"
+author: "Aryan Arora and Muno Siyakurima"
+date: "3/10/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+#######################################
+# Opening Packages and Importing Data #
+#######################################
+
+library(ggplot2)
+library(GGally)
+library(broom)
+library(car)
+library(dplyr)
+library(tidyverse)
+library(nlme)
+library(patchwork)
+library(readr)
+housing <- read_csv("/Users/aryanarora/Desktop/housing.csv")
+
+# Transforming house value to a more reasonable scale
+
+housing$median_house_value_upd <- housing$median_house_value/100000
+boxplot(median_house_value_upd ~ ocean_proximity, 
+        data = housing, main="Housing Value Based on Ocean Proximity", 
+        xlab = "Location", 
+        ylab = "Median House Value ($100,000)")
+```
+
+
+
+```{r, include = FALSE}
+
+###########################################
+# Determining which model is the best fit #
+###########################################
+
+#Saturated Model
+house_model <- lm(median_house_value_upd ~ ocean_proximity * households * population 
+                  + total_bedrooms * total_rooms 
+                  + housing_median_age 
+                  + latitude 
+                  + longitude 
+                  + median_income, data = housing)
+
+summary(house_model)
+
+#Removing interactions that did not appear statistically significant 
+
+house_model0 <- lm(median_house_value_upd ~ ocean_proximity 
+                   + households * population 
+                   + total_bedrooms * total_rooms 
+                   + housing_median_age 
+                   + latitude 
+                   + longitude 
+                   + median_income, data = housing)
+
+summary(house_model0)
+
+# Removing all interactions (the interactions that were initially statistically 
+# significant were not once we dropped the other interactions)
+
+house_model2 <- lm(median_house_value_upd ~ ocean_proximity 
+                   + total_bedrooms 
+                   + housing_median_age 
+                   + total_rooms 
+                   + population 
+                   + households 
+                   + median_income, data = housing)
+summary(house_model2)
+
+#Adding latitude and longitude
+
+house_model3 <- lm(median_house_value_upd ~ ocean_proximity 
+                   + total_bedrooms 
+                   + housing_median_age 
+                   + total_rooms 
+                   + latitude 
+                   + longitude 
+                   + population 
+                   + households 
+                   + median_income, data = housing)
+
+summary(house_model3)
+
+#Dropping total_rooms
+
+house_model4 <- lm(median_house_value_upd ~ ocean_proximity 
+                   + total_bedrooms 
+                   + housing_median_age 
+                   + total_bedrooms 
+                   + latitude + longitude 
+                   + population 
+                   + households 
+                   + median_income, data = housing)
+
+summary(house_model4)
+
+#Dropping latitude and longitude and adding back total_rooms
+
+house_model5 <- lm(median_house_value_upd ~ ocean_proximity 
+                   + total_bedrooms 
+                   + housing_median_age 
+                   + total_rooms 
+                   + total_bedrooms 
+                   + population 
+                   + households 
+                   + median_income, data = housing)
+
+summary(house_model5)
+
+######################################################
+# Generating QQ Plots and calculating AIC for models #
+######################################################
+
+house_model.aug <- augment(house_model)
+house_model2.aug <- augment(house_model2)
+
+ggplot(house_model.aug, aes(sample = .resid)) + 
+  geom_qq() + 
+  geom_qq_line() + 
+  labs(y = "sample quantiles", x = "normal quantiles")
+
+ggplot(house_model2.aug, aes(sample = .resid)) + 
+  geom_qq() + 
+  geom_qq_line() + 
+  labs(y = "sample quantiles", x = "normal quantiles")
+
+AIC(house_model)
+AIC(house_model0)
+AIC(house_model2)
+AIC(house_model3)
+AIC(house_model4)
+AIC(house_model5)
+```
+
+```{r, include = FALSE}
+##################
+# Residual Plots #
+##################
+
+#I am going through each of the variables and looking at the scatter to 
+# determine which variables have dispersion issues and need transformation
+
+house_model <- lm(median_house_value_upd ~ ocean_proximity 
+                  + total_bedrooms 
+                  + housing_median_age 
+                  + total_rooms 
+                  + latitude 
+                  + longitude 
+                  + population 
+                  + households 
+                  + median_income, data = housing)
+
+housing_aug <- augment(house_model)
+
+ocean_proximity_resid <- ggplot(housing_aug, aes(x = ocean_proximity, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Ocean proximity")
+
+total_bedrooms_resid <- ggplot(housing_aug, aes(x = total_bedrooms, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Total bedrooms")
+
+#total bedrooms has some dispersion issues
+
+housing_age_resid <- ggplot(housing_aug, aes(x = housing_median_age, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Housing median age")
+
+total_rooms_resid <- ggplot(housing_aug, aes(x = total_rooms, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Total Rooms")
+
+#total rooms has some dispersion issues
+
+latitude_resid <- ggplot(housing_aug, aes(x = latitude, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "latitude")
+
+longitude_resid <- ggplot(housing_aug, aes(x = longitude, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Longitude")
+
+population_resid <- ggplot(housing_aug, aes(x = population, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Population")
+
+#population has some dispersion issues
+
+households_resid0 <- ggplot(housing_aug, aes(x = households, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Households")
+
+#households has some dispersion issues
+
+median_income_resid <- ggplot(housing_aug, aes(x = median_income, y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "Median Income")
+
+#median income has some dispersion issues
+
+ocean_proximity_resid + total_bedrooms_resid + housing_age_resid
+
+total_rooms_resid + latitude_resid + longitude_resid
+
+population_resid + median_income_resid + households_resid0
+
+```
+
+```{r,include=FALSE}
+
+###########################
+# Testing Transformations #
+###########################
+
+#log transformations
+
+total_bedrooms2_resid <- ggplot(housing_aug, aes(x = log(total_bedrooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "log(Total bedrooms)")
+
+total_rooms2_resid <- ggplot(housing_aug, aes(x = log(total_rooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "log(Total Rooms)")
+
+population2_resid <- ggplot(housing_aug, aes(x = log(population), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "log(Population)")
+
+households2_resid <- ggplot(housing_aug, aes(x = log(households), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "log(Households)")
+
+median_income2_resid <- ggplot(housing_aug, aes(x = log(median_income), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "log(Median Income)")
+
+total_bedrooms2_resid + total_rooms2_resid
+population2_resid + households2_resid + median_income2_resid 
+
+# 1/x
+
+total_bedrooms3_resid <- ggplot(housing_aug, aes(x = (1/total_bedrooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "1/total_bedrooms")
+
+total_rooms3_resid <- ggplot(housing_aug, aes(x = (1/total_rooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "1/total_rooms")
+
+# sqrt(x)
+
+total_bedrooms4_resid <- ggplot(housing_aug, aes(x = sqrt(total_bedrooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "sqrt(total_bedrooms)")
+
+total_rooms4_resid <- ggplot(housing_aug, aes(x = sqrt(total_rooms), y = .resid)) +
+geom_point() + labs(y = "Residuals", x = "sqrt(total_rooms)")
+
+# 1/sqrt(x)
+
+total_bedrooms5_resid <- ggplot(housing_aug, aes(x = (1/sqrt(total_bedrooms)), 
+                                                 y = .resid)) + 
+  geom_point() + labs(y = "Residuals", x = "1/sqrt(total_bedrooms)")
+
+total_rooms5_resid <- ggplot(housing_aug, aes(x = (1/sqrt(total_rooms)), 
+                                              y = .resid)) +
+  geom_point() + labs(y = "Residuals", x = "1/sqrt(total_rooms)")
+
+# Comparative visualizations
+
+total_bedrooms3_resid + total_rooms3_resid
+total_bedrooms4_resid + total_rooms4_resid
+total_bedrooms5_resid + total_rooms5_resid
+
+```
+
+```{r, include = FALSE}
+#Studentized Residual Plots
+
+house_model <- lm(median_house_value_upd ~ ocean_proximity 
+                  + total_bedrooms 
+                  + housing_median_age 
+                  + total_rooms 
+                  + population 
+                  + households 
+                  + median_income, data = housing)
+
+housing_aug <- augment(house_model)
+
+ocean_proximity_resid <- ggplot(housing_aug, aes(x = ocean_proximity, y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "Ocean proximity")
+
+total_bedrooms_resid <- ggplot(housing_aug, aes(x = log(total_bedrooms), 
+                                                y = .std.resid)) +
+  geom_point() + labs(y = "Studentized Residuals", x = "log(Total bedrooms)")
+
+housing_age_resid <- ggplot(housing_aug, aes(x = housing_median_age, y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "Housing median age")
+
+total_rooms_resid <- ggplot(housing_aug, aes(x = log(total_rooms), y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "log(Total Rooms)")
+
+population_resid <- ggplot(housing_aug, aes(x = log(population), y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "log(Population)")
+
+households_resid <- ggplot(housing_aug, aes(x = log(households), y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "log(Households)")
+
+median_income_resid <- ggplot(housing_aug, aes(x = log(median_income), y = .std.resid)) +
+geom_point() + labs(y = "Studentized Residuals", x = "log(Median Income)")
+
+# Visualizations
+
+ocean_proximity_resid + total_bedrooms_resid + housing_age_resid
+
+total_rooms_resid + households_resid
+
+population_resid + median_income_resid 
+
+```
+
+```{r, include = FALSE}
+
+
+###################################################
+# Integrating the transformations into new models #
+###################################################
+
+# log total rooms, total bedrooms, population, households, and median income
+
+house_model1.1 <- lm(median_house_value_upd ~ ocean_proximity 
+                     + log(total_bedrooms) 
+                     + housing_median_age 
+                     + log(total_rooms) 
+                     + log(population) * log(households) 
+                     + log(median_income), data = housing)
+
+housing_aug1.1 <- augment(house_model1.1)
+
+pop1 <- ggplot(housing_aug1.1, aes(sample = .std.resid)) + geom_qq() + geom_qq_line() +
+labs(y = "sample quantiles", x = "normal quantiles")
+
+# add a log to median house value and add the latitude and longitude variables
+# all changes after this model will be trying different transformations to 
+# the dependent variable: median house value
+
+house_model1.2 <- lm(log(median_house_value_upd) ~ ocean_proximity 
+                     + log(total_bedrooms) 
+                     + housing_median_age 
+                     + log(total_rooms) 
+                     + latitude 
+                     + longitude 
+                     + log(population) 
+                     + log(households) 
+                     + log(median_income), data = housing)
+
+housing_aug1.2 <- augment(house_model1.2)
+
+pop2 <- ggplot(housing_aug1.2, aes(sample = .std.resid)) + geom_qq() + geom_qq_line() +
+labs(y = "sample quantiles", x = "normal quantiles")
+
+# 1/median_house_value_upd
+
+house_model1.3 <- lm((1/median_house_value_upd) ~ ocean_proximity 
+                     + log(total_bedrooms) 
+                     + housing_median_age 
+                     + log(total_rooms) 
+                     + latitude 
+                     + longitude 
+                     + log(population) 
+                     + log(households) 
+                     + log(median_income), data = housing)
+
+housing_aug1.3 <- augment(house_model1.3)
+
+pop3 <- ggplot(housing_aug1.3, aes(sample = .std.resid)) + geom_qq() + geom_qq_line() +
+labs(y = "sample quantiles", x = "normal quantiles")
+
+# sqrt(median house value)
+
+house_model1.4 <- lm(sqrt(median_house_value_upd) ~ ocean_proximity 
+                     + log(total_bedrooms) 
+                     + housing_median_age 
+                     + log(total_rooms) 
+                     + latitude 
+                     + longitude 
+                     + log(population) 
+                     + log(households) 
+                     + log(median_income), data = housing)
+
+housing_aug1.4 <- augment(house_model1.4)
+
+pop4 <- ggplot(housing_aug1.4, aes(sample = .std.resid)) + geom_qq() + geom_qq_line() +
+labs(y = "sample quantiles", x = "normal quantiles")
+
+#Visualizations
+
+pop1 + pop2 + pop3 + pop4
+pop1
+```
+
+
+```{r, include = FALSE}
+###########################
+# Determining Final Model #
+###########################
+
+#Median House Value unlogged
+
+log_interactions_Model <- lm(median_house_value_upd ~ ocean_proximity 
+                             + housing_median_age 
+                             + log(median_income) 
+                             + log(total_rooms) * log(total_bedrooms) 
+                             + log(population) * log(households) 
+                             + latitude 
+                             + longitude, data = housing) 
+
+summary(log_interactions_Model)
+
+#Removing latitude and longitude
+
+Final_Model <- lm(median_house_value_upd ~ ocean_proximity 
+                  + housing_median_age 
+                  + log(median_income) 
+                  + log(total_rooms) 
+                  + log(total_bedrooms) 
+                  + log(population) * log(households), data = housing) 
+
+summary(Final_Model)
+
+pander::pander(summary(Final_Model), digits = 2)
+
+```
+
+```{r, include=FALSE}
+
+#####################################
+# Generating Final Regression Model #
+#####################################
+
+Final_Model <- lm(median_house_value_upd ~ ocean_proximity 
+                  + housing_median_age 
+                  + log(median_income) 
+                  + log(total_rooms) 
+                  + log(total_bedrooms) 
+                  + log(population) * log(households), data = housing) 
+summary(Final_Model)
+```
+
+```{r, echo=FALSE}
+
+#####################################
+# Producing Regression Model Output #
+#####################################
+
+pander::pander(summary(Final_Model), digits = 2)
+```
+
+```{r, echo=FALSE, fig.width=8, fig.height=4.5, fig.align='center'}
+
+################################################################
+# Producing Box plot between housing value and ocean proximity #
+################################################################
+
+boxplot(median_house_value_upd ~ ocean_proximity, data = housing, 
+        main="Median Housing Value Based on Ocean Proximity", 
+        xlab = "Ocean Proximity", 
+        ylab = "Median House Value ($100,000)")
+```
+
+```{r, echo=FALSE, fig.width=8, fig.height=3.5, fig.align='center'}
+
+################################################################
+# Producing Scatter plot between housing value and housing age #
+################################################################
+
+ggplot(housing, aes(x = housing_median_age, y = median_house_value_upd)) +
+  geom_point(size = 0.5) + 
+  labs(x = "Housing Median Age (Years)", y = "Median House Value ($100,000)") + 
+  ggtitle("Median Age vs Median Value")
+```
+
+```{r echo=FALSE, fig.width=8, fig.height=3.5, fig.align='center'}
+
+##################################################################
+# Producing Scatter plot between housing value and median income #
+##################################################################
+
+ggplot(housing, aes(x = log(median_income), y = median_house_value_upd)) + 
+  geom_point(size = 0.5) +
+  labs(x = "log(median income) ($10,000)", y = "Median House Value ($100,000)") + 
+  ggtitle("Median Income vs Median House Value")
+```
+
+```{r, echo=FALSE, message=FALSE, warning = FALSE, width=8, height=4, fig.align='center'}
+
+################################################################################
+# Producing Scatter plots between housing value and total rooms/total bedrooms #
+################################################################################
+
+plot1 <- ggplot(housing, aes(x = log(total_rooms), y = median_house_value_upd)) + 
+  geom_point(size = 0.5) +
+  labs(x = "log(total rooms)", y = "Median House Value ($100,000)") + 
+  ggtitle("Total Rooms")
+plot2 <- ggplot(housing, aes(x = log(total_bedrooms), y = median_house_value_upd)) + 
+  geom_point(size = 0.5) +
+  labs(x = "log(total bedrooms)", y = "Median House Value ($100,000)") + 
+  ggtitle("Total Bedrooms")
+plot1 + plot2
+```
+
+```{r, echo=FALSE, fig.width=10, fig.height=4, fig.align='center'}
+
+##############################
+# Producing QQplot for model #
+##############################
+
+house_model1.1 <- lm(median_house_value_upd ~ ocean_proximity 
+                     + log(total_bedrooms) 
+                     + housing_median_age 
+                     + log(total_rooms) 
+                     + log(population) * log(households) 
+                     + log(median_income), data = housing)
+
+housing_aug1.1 <- augment(house_model1.1)
+
+qq1 <- ggplot(housing_aug1.1, aes(sample = .std.resid)) + geom_qq() + geom_qq_line() + 
+  labs(y = "sample quantiles", x = "normal quantiles") + 
+  ggtitle("QQ Plot")
+
+qq1
+```
+
